@@ -1,4 +1,4 @@
-
+<div id="preloader"><div class="img"></div></div>
 <script>
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
   (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
@@ -23,7 +23,7 @@
 						<div class="search">
 							<?php 
 								$search_type_value = 'product';
-								$placeholder = 'Search Gift & More...'; 
+								$placeholder = 'Search Gifts, Ideas, Users & More…. '; 
 								if(isset($search_type)){
 									if($search_type == 'user'){
 										$placeholder = 'Search User...'; 
@@ -53,18 +53,38 @@
 						
 						<ul class="user-info hidden-xs">
 							<li>
+								<a href="#" data-toggle="dropdown">
 								<i class="fa fa-bell"></i>
 								<div>Notifications</div>
+								</a>
+								<ul class="dropdown-menu nt">
+						
+									<?php foreach($data['notifications'] as $n){ ?>
+									<li>
+										<img src="<?php if(file_exists($n->image))echo base_url($n->image);else echo base_url($this->config->item('default_image_user')); ?>">
+										<div class="content">
+											<div><?php echo $n->subject; ?></div>
+											<div class="time"><i class="fa fa-clock-o"></i> <?php echo date('d M,y h:i A', strtotime($n->created_date)); ?></div>
+										</div>
+									</li>
+									<?php } ?>
+									<?php if(count($data['notifications']) == 0){ ?>
+									<li>No messages</li>
+									<?php } ?>
+								</ul>
 							</li>
 							<li>
-								<img src="<?php echo $this->session->userdata('image'); ?>">
+								<a href="#" data-toggle="dropdown">
+								<img src="<?php if(file_exists($this->session->userdata('image')))echo $this->session->userdata('image');else echo base_url($this->config->item('default_image_user'));  ?>">
 								<div>Profile</div>
-								<ul class="dropdown-list">
+								</a>
+								<ul class="dropdown-menu ud">
 									<li><div class="name"><?php echo $this->session->userdata('name'); ?></div></li>
-									<li><a href="<?php echo base_url();?>home/profiles"><i class="fa fa-users"></i> Custom Profiles</a></li>
-									<li><a href="<?php echo base_url();?>home/likes"><i class="fa fa-gift"></i> Liked Gifts</a></li>
-									<li><a href="<?php echo base_url();?>home/reset_password"><i class="fa fa-key"></i> Reset Pasword</a></li>
-									<li><a href="<?php echo base_url();?>home/profile"><i class="fa fa-cog"></i> Settings</a></li>
+									<li><a href="<?php echo base_url();?>home/profiles"><i class="fa fa-gift"></i> Created Profiles </a></li>
+									<li><a href="<?php echo base_url();?>home/likes"><i class="fa fa-thumbs-o-up"></i> Gifts for Me</a></li>
+									<li><a href="<?php echo base_url();?>home/requests"><i class="fa fa-cubes"></i> Personal Gift Shopping</a></li>
+									<li><a href="<?php echo base_url();?>home/reset_password"><i class="fa fa-unlock-alt"></i> Reset Pasword</a></li>
+									<li><a href="<?php echo base_url();?>home/profile"><i class="fa fa-cogs"></i> Settings</a></li>
 									<li><a href="<?php echo base_url();?>home/logout"><i class="fa fa-sign-out"></i> Logout</a></li>
 								</ul>
 							</li>
@@ -85,7 +105,7 @@
 		</div>
 		<div class="container sub-header hidden-xs">
 			<ul>
-				<?php foreach($data as $m){ if($m->parent_id == 0){ ?>
+				<?php foreach($data['navigations'] as $m){ if($m->parent_id == 0){ ?>
 				<li class="dropdown">
 					
 					<?php if($m->navigation_type == 'page'){ ?>
@@ -100,7 +120,7 @@
 					</a>
 					<?php if($m->childs > 0){ ?>
 					<ul class="dropdown-list">
-						<?php foreach($data as $cm) { if($cm->parent_id == $m->id){ ?>
+						<?php foreach($data['navigations'] as $cm) { if($cm->parent_id == $m->id){ ?>
 						<li><a href="<?php echo base_url();?>home/products/<?php echo $cm->slug;?>"><?php echo $cm->name;?> </a></li>
 						<?php } } ?>
 					</ul>
@@ -126,6 +146,7 @@
 				<ul>
 					<li><a href="<?php echo base_url();?>home/profiles"><i class="fa fa-users"></i> Profiles</a></li>
 					<li><a href="<?php echo base_url();?>home/likes">| <i class="fa fa-gift"></i> Likes</a></li>
+					<li><a href="<?php echo base_url();?>home/requests">| <i class="fa fa-gift"></i> Requests</a></li>
 					<li><a href="<?php echo base_url();?>home/profile">| <i class="fa fa-cog"></i> Settings</a></li>
 					<li><a href="<?php echo base_url();?>home/reset_password">| <i class="fa fa-key"></i> Reset</a></li>
 				</ul>
@@ -137,7 +158,7 @@
 		</div>
 		
 		<ul class="m-list">
-			<?php foreach($data as $m){ if($m->parent_id == 0){ ?>
+			<?php foreach($data['navigations'] as $m){ if($m->parent_id == 0){ ?>
 			<li class="dropdown">
 				
 				<?php if($m->navigation_type == 'page'){ ?>
@@ -148,7 +169,7 @@
 				<span class="toggle"><i class="fa fa-angle-down"></i></span>
 				<a href="<?php echo base_url();?>home/products/<?php echo $m->slug;?>"><?php echo $m->name; ?> </a>
 				<ul class="dropdown-list">
-					<?php foreach($data as $cm) { if($cm->parent_id == $m->id){ ?>
+					<?php foreach($data['navigations'] as $cm) { if($cm->parent_id == $m->id){ ?>
 					<li><a href="<?php echo base_url();?>home/products/<?php echo $cm->slug;?>"><i class="fa fa-angle-right" aria-hidden="true"></i> <?php echo $cm->name;?> </a></li>
 					<?php } } ?>
 				</ul>
@@ -159,13 +180,3 @@
 		
 	</div>
 </div>
-
-
-
-
-
-
-
-
-
-

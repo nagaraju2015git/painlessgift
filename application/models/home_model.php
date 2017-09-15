@@ -13,6 +13,7 @@ class Home_model extends CI_Model{
 	public function __Construct(){
 		parent:: __Construct();
 		$this->load->model("admin_model");
+		$this->user_id = (int)$this->session->userdata("userID");
 	}
 	
 	/**
@@ -31,7 +32,13 @@ class Home_model extends CI_Model{
 		return 'r'.$result;
 	}
 	function getHeader(){
-		 return $this->db->query("select *,(SELECT COUNT(*) FROM tbl_navigation WHERE parent_id = n.id) AS childs from tbl_navigation n ORDER BY n.sortin_order")->result();
+		$data['navigations'] = $this->db->query("select *,(SELECT COUNT(*) FROM tbl_navigation WHERE parent_id = n.id) AS childs from tbl_navigation n ORDER BY n.sortin_order")->result();
+		$data['questions'] = $this->db->query("select *,(SELECT COUNT(*) FROM tbl_question_options WHERE qid = q.id) AS oCount from tbl_questionaire q ORDER BY q.sorting_order ASC")->result();
+		$data['options'] = $this->db->query("select * from tbl_question_options")->result();
+		//$data['notifications'] = $this->db->query("SELECT * FROM tbl_notification WHERE ((user_id = $this->user_id  OR (type = 'S_GLOBAL' && '".$this->session->userdata('role')."' = '".$this->config->item('role_shopper')."')) ORDER BY created_date DESC LIMIT 5")->result();
+		$data['notifications'] = $this->db->query("SELECT * FROM tbl_notification WHERE user_id = $this->user_id AND type = 'INDIVIDUAL' ORDER BY created_date DESC LIMIT 5")->result();
+		$data['shopper_page'] = $this->admin_model->get_page(array('type'=>'SA'));
+		return $data;
 	}
 	
 	function login()
@@ -149,7 +156,7 @@ class Home_model extends CI_Model{
 		}
 		if($type == 'CHECH_AUTH'){
 			return $this->db->query("SELECT * FROM tbl_user WHERE auth_id='$auth_id' AND modified_date > (NOW() - interval 60 minute)")->row();
-		}
+		}		
 	}
 	function update_user(){
 		$retvalue = array();
@@ -172,7 +179,7 @@ class Home_model extends CI_Model{
 		}else{
 			$image = $this->input->post('uploaded_img');
 		}
-		if(getimagesize($image) === false)
+		if(@getimagesize($image) === false)
 			$image = base_url($this->config->item('default_image_user'));
 		
 		$row = $this->db->query("SELECT * FROM tbl_user WHERE email='$email' AND id != $userID")->row();
@@ -245,7 +252,32 @@ class Home_model extends CI_Model{
 			return $this->db->query($str)->result();
 		}
 	}
-	
+	function ins_upd_shopper_request(){
+		$type = $this->input->post('type');
+		$first_name = $this->input->post('first_name');
+		$last_name = $this->input->post('last_name');
+		$email = $this->input->post('email');
+		$phone = $this->input->post('phone');
+		$gender = $this->input->post('gender');
+		$address = $this->input->post('address');
+		$city = $this->input->post('city');
+		$country = $this->input->post('country');
+		
+		if($type =='INSERT'){
+			$chk=$this->db->query("select *  from tbl_shopper_requests where email='$email'")->row();
+			if(!$chk){
+				$this->db->query("INSERT INTO tbl_shopper_requests(first_name,last_name,email,phone,gender,city,country,address,created_date,status) VALUES('$first_name','$last_name','$email','$phone','$gender','$city','$country','$address',now(),'New');");
+				$retvalue['message'] = 'Request sent successfully';
+				$retvalue['status'] = true;
+			}else{
+				$retvalue['message'] = 'Email already exists, choose a different email.';
+				$retvalue['status'] = False;
+		
+			}
+			return $retvalue;
+		}
+		
+	}
 	function ins_upd_profile(){
 		$retvalue = array();
 		$retvalue['status'] = false;
@@ -309,7 +341,7 @@ class Home_model extends CI_Model{
 		}else{
 			$image = $this->input->post('uploaded_img');
 		}
-		if(getimagesize($image) === false)
+		if(@getimagesize($image) === false)
 			$image = base_url($this->config->item('default_image'));
 		
 		if($type == 'INSERT'){
@@ -532,7 +564,7 @@ class Home_model extends CI_Model{
 		if($age != NULL && $age !=''){
 			$query = $this->db->query("SELECT * FROM tbl_filter WHERE id = $age")->row();
 			if($query)
-				$str.=" AND ((p.min_age >= ".$query->min_value." AND p.min_age <= ".$query->max_value.") OR (p.max_age >= ".$query->min_value." AND p.max_age <= ".$query->max_value."))";
+				$str.=" AND ((".$query->min_value." BETWEEN  p.min_age AND p.max_age) OR (".$query->max_value." BETWEEN  p.min_age AND p.max_age))";
 		}
 		if($price != NULL && $price !=''){
 			$query = $this->db->query("SELECT * FROM tbl_filter WHERE id = $price")->row();
@@ -549,7 +581,7 @@ class Home_model extends CI_Model{
 		if($page <= 0)
 			$page = 1;
 		$start = (int)((int)($page-1) * $this->config->item("default_items"));		
-		$str.=" LIMIT ".$start.",".$this->config->item("default_items");
+		$str.=" ORDER BY rand() LIMIT ".$start.",".$this->config->item("default_items");
 		//echo $str;exit();
 		return $this->db->query($str)->result();
 		
@@ -708,15 +740,44 @@ class Home_model extends CI_Model{
 			  $this->db->query("insert into tbl_likes(user_id,product_id)values('$userID','$productID')");
 			  return true;
 		 }
-	 }
-	 function searchProducts()
-	 {
+	}
+	function searchProducts()
+	{
 		 echo "ok"; exit();
 		 $search = $this->input->post("searchkey");
 		 echo $search;
 		 $data['search'] = $this->db->query("select * from tbl_product where name LIKE '".$search."'%")->result();
 		 return $data;
-	 }
+	}
+	function ins_upd_user_answers(){
+		$answers = (array)$this->input->post('answers');
+		$title = (string)$this->input->post('title');
+		$userID = $this->session->userdata('userID');
+		
+		$this->db->query("INSERT INTO tbl_user_requests(title, userID, created_date, updated_date, status) VALUES('$title', $userID,NOW(),NOW(),'New')");
+		$id = $this->db->query("SELECT MAX(id) AS id FROM tbl_user_requests")->row()->id;
+		foreach($answers as $a){
+			if(is_array($a[1]))$a[1] = json_encode($a[1]);
+			$this->db->query("INSERT INTO tbl_user_answers(userID,questionID,answer,requestID) VALUES($userID,".$a[0].",'".$a[1]."',$id)");
+		}
+		
+		$content = $this->session->userdata('name').' has been submitted new request.';
+		$this->db->query("INSERT INTO tbl_notification (user_id, subject, content, image, type, created_date, created_by, status) VALUES ($userID, '$content', '$content', '".$this->session->userdata('image')."', 'S_GLOBAL', NOW(), $userID, 'Active')");
+		
+		$user = $this->db->query("SELECT * FROM tbl_user WHERE id = $userID")->row();
+		if($user){
+			$to = $user->email;
+			$subject = "Request has been submitted successfully";
+			$message="Hi ".$user->first_name.' '.$user->last_name.",<br><br>";
+			$message.="Your shopping assist request has been submitted successsfully. Our shopping assistent will contact you soon.<br><br>";
+			$message.="Thanks,<br>Painlessgift Team."; 
+			$this->send_email($to,$subject,$message);
+		}		
+		
+		$retvalue['message'] = $content;
+		$retvalue['status'] = true;
+		return $retvalue;
+	}
 }
 
 ?>

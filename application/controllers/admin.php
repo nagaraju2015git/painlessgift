@@ -8,14 +8,13 @@ class Admin extends CI_Controller {
 		$this->load->model('home_model');
 	}
 	function access($data=array()){
-		if($this->session->userdata('role') != 'ADMIN'){
+		if($this->session->userdata('role') != $this->config->item('role_admin')){
 			redirect('home/signin');
 		}
 	}
 	
 	public function index()
-	{
-		
+	{		
 		$this->access();
 		$pageData['page'] = 'DASHBOARD';
 		$pageData['pageTitle'] = 'Dashboard';
@@ -307,6 +306,30 @@ class Admin extends CI_Controller {
 		$data['page'] = $this->admin_model->get_page(array('type'=>'S','id'=>$id));
 		$this->load->view('admin/page_config',$data);
 	}
+	
+	public function shopping_assistant_page()
+	{
+		$this->access();
+		$pageData['page'] = 'SA';
+		$pageData['pageTitle'] = 'Page Configuration';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['page'] = $this->admin_model->get_page(array('type'=>'SA'));
+		$this->load->view('admin/shopping_assistant',$data);
+	}
+	public function shopper_page()
+	{
+		$this->access();
+		$pageData['page'] = 'SP';
+		$pageData['pageTitle'] = 'Page Configuration';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['page'] = $this->admin_model->get_page(array('type'=>'SP'));
+		$this->load->view('admin/shopper_page',$data);
+	}
+	
 	public function user_products()
 	{
 		$this->access();
@@ -318,6 +341,76 @@ class Admin extends CI_Controller {
 		$data['products'] = $this->home_model->get_user_products(array('type'=>'ALL'));
 		$this->load->view('admin/user_products',$data);
 	}
+	public function questionaire()
+	{
+		$this->access();
+		$pageData['page'] = 'CMS';
+		$pageData['pageTitle'] = 'Pages List';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['questions'] = $this->admin_model->get_questions(array('type'=>'L'));
+		$this->load->view('admin/questionaire',$data);
+	}
+		public function questionaire_config($id=0)
+	{
+		$this->access();
+		$pageData['page'] = 'CMS';
+		$pageData['pageTitle'] = 'Page Configuration';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['question'] = $this->admin_model->get_questions(array('type'=>'S','id'=>$id));
+		$data['options'] = $this->admin_model->get_questions(array('type'=>'O','id'=>$id));
+		$this->load->view('admin/questionaire_config',$data);
+	}
+	public function shopper_requests()
+	{
+		$this->access();
+		$pageData['page'] = 'SHOPPER_REQUESTS';
+		$pageData['pageTitle'] = 'Pages List';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['shoppers'] = $this->admin_model->get_shoppers(array('type'=>'L'));
+		$this->load->view('admin/shopper_requests',$data);
+	}
+	public function user_requests()
+	{
+		$this->access();
+		$pageData['page'] = 'USER_REQUESTS';
+		$pageData['pageTitle'] = 'Pages List';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['requests'] = $this->admin_model->get_user_requests(array('type'=>'ALL'));
+		$data['shoppers'] = $this->admin_model->get_user(array('type'=>'SHOPPERS'));
+		$this->load->view('admin/user_requests',$data);
+	}
+	
+	function request_details($id=0){
+		$this->access();
+		$pageData['page'] = 'USER_REQUESTS';
+		$pageData['pageTitle'] = 'Pages List';
+		$data['head'] = $this->load->view('admin/templates/head',$pageData,true);
+		$data['header'] = $this->load->view('admin/templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('admin/templates/footer',$pageData,true);
+		$data['request'] = $request = $this->admin_model->get_user_requests(array('type'=>'S','id'=>$id));
+		$data['products'] = $this->admin_model->get_user_requests(array('type'=>'PRODUCTS','id'=>$id));
+		$data['shoppers'] = $this->admin_model->get_user(array('type'=>'SHOPPERS'));
+		if($request){
+			//Chat
+			$chat['sendToUserID'] = $request->userID;
+			$chat['sendToImage'] = base_url($this->config->item('default_image_user'));
+			$chat['sendToName'] = $request->first_name.' '.$request->last_name;
+			$data['chat'] = $this->load->view('chat',$chat,true);
+			
+			$this->load->view('admin/request_details',$data);
+		}else{
+			echo 'Invalid URL';
+		}
+	}
+	
 	
 	function ins_upd_page(){
 		echo json_encode($this->admin_model->ins_upd_page());
@@ -363,6 +456,16 @@ class Admin extends CI_Controller {
 		);
 		echo json_encode($this->admin_model->get_api($data));
 	}
+	function get_user_requests(){
+		$data = array(
+			'type'=>$this->input->post('type'),
+			'id'=>$this->input->post('id'),
+			'key'=>$this->input->post('key'),
+			'shopperID'=>$this->input->post('shopper'),
+			'status'=>$this->input->post('status')
+		);
+		echo json_encode($this->admin_model->get_user_requests($data));
+	}
 	function add_products(){
 		var_dump($this->input->post('products'));
 	}
@@ -374,5 +477,17 @@ class Admin extends CI_Controller {
 	}
 	function ins_upd_section(){
 		echo json_encode($this->admin_model->ins_upd_section());
+	}
+	function get_api_response(){
+		echo json_encode($this->admin_model->get_api_response());
+	}
+	function ins_upd_questions(){
+		echo json_encode($this->admin_model->ins_upd_questions());
+	}
+	function ins_upd_shopper(){
+		echo json_encode($this->admin_model->ins_upd_shopper());
+	}
+	function ins_upd_shopping_page(){
+		echo json_encode($this->admin_model->ins_upd_shopping_page());
 	}
 }

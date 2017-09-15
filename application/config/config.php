@@ -22,7 +22,7 @@
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = 'http://localhost:8081/painlessgift/';
+$config['base_url'] = 'http://www.painlessgift.com/';
 
 /*
 |--------------------------------------------------------------------------
@@ -372,9 +372,14 @@ $config['default_items'] = 20;
 $config['default_image'] = 'assets/images/placeholder.png';
 $config['default_image_user'] = 'assets/images/user.jpg';
 $config['img_ext'] = array('jpg','png','jpeg');
-$config['fb_app_id'] = '239011039923860';
-$config['fb_secret_id'] = '556f3e69b7497da28c406496b3bac7f3';
+$config['fb_app_id'] = '918274341576308';
+$config['fb_secret_id'] = '3f00fe4b9cce4b559b42d2c040976d32';
 
+$config['node_server_url'] = 'http://www.painlessgift.com:3000';
+
+$config['role_admin'] = 'ADMIN';
+$config['role_user'] = 'USER';
+$config['role_shopper'] = 'SHOPPER';
 
 /* End of file config.php */
 /* Location: ./application/config/config.php */

@@ -22,6 +22,7 @@
 	<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>/assets/admin/lib/jquery.vectormap/jquery-jvectormap-1.2.2.css"/>
 	<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>/assets/admin/lib/jqvmap/jqvmap.min.css"/>
 	<link rel="stylesheet" type="text/css" href="<?php echo base_url(); ?>/assets/admin/lib/datetimepicker/css/bootstrap-datetimepicker.min.css"/>
+	<link href="<?php echo base_url(); ?>assets/css/chat.css" rel="stylesheet">
 	<link rel="stylesheet" href="<?php echo base_url(); ?>/assets/admin/css/style.css" type="text/css"/>
 	<link rel="stylesheet" href="<?php echo base_url(); ?>/assets/admin/css/custom.css" type="text/css"/>
 	

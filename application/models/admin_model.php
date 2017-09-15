@@ -7,8 +7,14 @@ class Admin_model extends CI_Model{
 	
 	
 	public function __construct(){
-		parent::__construct();
-		
+		//$this->load->model("home_model");
+		$this->user_id = (int)$this->session->userdata("userID");
+	}
+	
+	function getHeader($page){
+		$data['notifications'] = $this->db->query("SELECT * FROM tbl_notification WHERE (user_id = $this->user_id  OR (type = 'S_GLOBAL' && '".$this->session->userdata('role')."' = '".$this->config->item('role_shopper')."')) ORDER BY created_date DESC LIMIT 5")->result();
+		$data['reports'] = $this->getReports($page);
+		return $data;
 	}
 	
 	public function get_report($data){		
@@ -48,6 +54,165 @@ class Admin_model extends CI_Model{
 		if($type == 'DL'){
 			return $this->db->query("SELECT * FROM tbl_user WHERE role='USER' ORDER BY id DESC LIMIT 5")->result();
 		}
+		if($type == 'SHOPPERS'){
+			return $this->db->query("SELECT * FROM tbl_user WHERE role='".$this->config->item('role_shopper')."'")->result();
+		}
+		if($type == 'REQUESTS_L'){
+			return $this->db->query("SELECT u.first_name,u.last_name,ur.* FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id ORDER BY u.created_date DESC")->result();
+		}
+	}
+	
+	function get_user_requests($data){
+		$type = isset($data['type']) ? $data['type'] : '';
+		$id = isset($data['id']) ? (int)$data['id'] : 0;
+		$userID = isset($data['userID']) ? (int)$data['userID'] : 0;
+		$key = isset($data['key']) ? $data['key'] : '';
+		$shopperID = isset($data['shopperID']) ? $data['shopperID'] : 0;
+		$status = isset($data['status']) ? $data['status'] : '';
+		
+		if($type == 'S'){
+			return $this->db->query("SELECT u.first_name,u.last_name,ur.*,(SELECT CONCAT(first_name,' ',last_name) FROM tbl_user WHERE id = ur.shopper_id) AS shopperName FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id WHERE ur.id=$id")->row();
+		}
+		if($type == 'ALL_OLD'){
+			return $this->db->query("SELECT u.first_name,u.last_name,ur.* FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id ORDER BY u.created_date DESC")->result();
+		}
+		if($type == 'ALL'){
+			return $this->db->query("SELECT CONCAT(u.first_name,' ',u.last_name) AS userName,(SELECT CONCAT(first_name,' ',last_name) FROM tbl_user WHERE id = ur.shopper_id) AS shopperName,ur.*  FROM tbl_user_requests ur INNER JOIN tbl_user u ON u.id = ur.userID  ORDER BY ur.created_date DESC")->result();
+		}
+		if($type == 'ANSWERS'){
+			$qry = $this->db->query("SELECT q.id as qid,q.question,a.answer,q.qtype FROM tbl_user_answers a INNER JOIN tbl_questionaire q ON q.id = a.questionID WHERE a.userID = $userID AND a.requestID = $id")->result();
+			$qqry = $this->db->query("SELECT * FROM tbl_question_options")->result();
+			foreach($qry as $q){
+				if($q->qtype == 'Multiple Choice' || $q->qtype == 'Single Choice'){
+					$answer = '';
+					$answers = (array)json_decode($q->answer,true);
+					foreach($qqry as $o){
+						if($o->qid == $q->qid && in_array($o->id,$answers))$answer.=$o->name.',';						
+					}
+					$q->answer = substr($answer,0,-1);
+				}
+			} 
+			return $qry;
+		}
+		if($type == 'NEW'){
+			return $this->db->query("SELECT u.first_name,u.last_name,ur.* FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id WHERE ur.status='New' ORDER BY u.created_date DESC")->result();
+		}
+		if($type == 'ONGOING'){
+			return $this->db->query("SELECT u.first_name,u.last_name,ur.* FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id WHERE ur.status='Ongoing' AND shopper_id = $userID ORDER BY u.created_date DESC")->result();
+		}
+		if($type == 'COMPLETED'){
+			return $this->db->query("SELECT u.first_name,u.last_name,ur.* FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id WHERE ur.status='Completed' AND shopper_id = $userID ORDER BY u.created_date DESC")->result();
+		}
+		if($type == 'USER_REQUESTS'){
+			return $this->db->query("SELECT *,(SELECT CONCAT(first_name,' ',last_name) FROM tbl_user WHERE id = ur.shopper_id) AS shopperName  FROM tbl_user_requests ur WHERE ur.userID = $userID ORDER BY ur.created_date DESC")->result();
+		}
+		if($type == 'PRODUCTS'){
+			return $this->db->query("SELECT p.id,p.name,p.price,p.image,p.product_link,c.name as categoryName,urp.status,urp.id AS urpID FROM tbl_product p INNER JOIN tbl_category c ON c.id = p.category INNER JOIN tbl_user_request_products urp ON urp.product_id = p.id WHERE urp.request_id = $id ORDER BY urp.date_time DESC")->result();
+		}
+		if($type == 'SEARCH'){
+			$str = "SELECT CONCAT(u.first_name,' ',u.last_name) AS userName,(SELECT CONCAT(first_name,' ',last_name) FROM tbl_user WHERE id = ur.shopper_id) AS shopperName,ur.*  FROM tbl_user_requests ur INNER JOIN tbl_user u ON u.id = ur.userID WHERE ur.status != '' ";
+			
+			if($key != '' && $key != null)
+				$str.=" AND (u.first_name LIKE '%$key%' OR u.last_name LIKE '%$key%' OR u.created_date LIKE '%$key%') ";
+			
+			if($shopperID)
+				$str.=" AND ur.shopper_id = $shopperID ";
+			
+			if($status)
+				$str.=" AND ur.status = '$status' ";
+			
+			$str .= " ORDER BY ur.created_date DESC limit 50";
+			$qry = $this->db->query($str)->result();
+			$requests = array();$i=0;
+			foreach($qry as $q){
+				$requests[$i]['user'] = $q->userName;
+				$requests[$i]['shopper'] = $q->shopperName ? $q->shopperName : '--';
+				$requests[$i]['date_time'] = date('d M,y h:i A',strtotime($q->created_date));
+				$requests[$i]['status'] = $q->status;
+				$requests[$i]['id'] = $q->id;
+				$i++;
+			}
+			return $requests;
+		}
+	}
+	function ins_upd_user_requests(){
+		$retvalue['status']= false;$retvalue['message']= 'Please try again later';
+		
+		$type=$this->input->post('type');
+		$id=(int)$this->input->post('id');
+		$shopperID=(int)$this->input->post('shopperID');
+		$productID=(int)$this->input->post('productID');
+		$urpID=(int)$this->input->post('urpID');
+		
+		if($type == 'CONFIRM'){
+			$this->db->query("UPDATE tbl_user_requests SET shopper_id = $shopperID, status='Ongoing' WHERE id = $id");
+			$retvalue['status'] = true;
+			$retvalue['message'] = 'Request accepted successfully';
+		}
+		
+		if($type == 'ASSIGN'){
+			$this->db->query("UPDATE tbl_user_requests SET shopper_id = $shopperID, status='Ongoing' WHERE id = $id");
+			$retvalue['status'] = true;
+			$retvalue['message'] = 'Shopper assigned successfully';
+		}
+		
+		if($type == 'CONFIRM' || $type == 'ASSIGN'){
+			$user = $this->db->query("SELECT u.* FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id WHERE ur.id = $id")->row();
+			if($user){
+				$to = $user->email;
+				$subject = "A shopper has been assigned to your request.";
+				$message="Hi ".$user->first_name.' '.$user->last_name.",<br><br>";
+				$message.="Thank you for showing interest in shopping assistent. Below are details,<br><br>";
+				
+				$shopper = $this->db->query("SELECT * FROM tbl_user WHERE id = $shopperID")->row();
+				
+				$message.="Shopper Name:<b>".$shopper->first_name.' '.$shopper->last_name."</b><br>";
+				$message.="Request ID:<b>".$id."</b><br><br>";
+				
+				$message.="Thanks,<br>Painlessgift Team."; 
+				$this->home_model->send_email($to,$subject,$message);				
+				
+				$content = $shopper->first_name.' '.$shopper->last_name.' assigned to your request.';
+				$this->db->query("INSERT INTO tbl_notification (user_id, subject, content, image, type, created_date, created_by, status) VALUES ($user->id, '$content', '$content', '".$this->session->userdata('image')."', 'INDIVIDUAL', NOW(), ".$this->session->userdata('userID').", 'Active')");
+			}	
+		}
+		
+		if($type == 'COMPLETED'){
+			$this->db->query("UPDATE tbl_user_requests SET status='Completed' WHERE id = $id");
+			$retvalue['status'] = true;
+			$retvalue['message'] = 'Request completed successfully';
+		}
+		
+		if($type == 'SUGGEST'){
+			$this->db->query("INSERT INTO tbl_user_request_products (request_id, product_id, suggested_by, date_time, status) VALUES ($id, $productID, $shopperID, NOW(), 'Suggested')");
+			$retvalue['status'] = true;
+			$retvalue['message'] = 'Product suggested successfully';
+		}
+		
+		if($type == 'ACCEPT_REJECT'){
+			$status = 'Rejected';
+			$retvalue['message'] = 'Product rejected successfully';
+			$message = 'rejected';
+			if($this->input->post('status') == 'Accept'){
+				$status = 'Accepted';
+				$message = 'accepted';
+				$retvalue['message'] = 'Product accepted successfully';
+			}
+			$this->db->query("UPDATE tbl_user_request_products SET status = '$status' WHERE id = $urpID");
+			
+			$user = $this->db->query("SELECT u.*,ur.shopper_id FROM tbl_user u INNER JOIN tbl_user_requests ur ON ur.userID = u.id WHERE ur.id = $id")->row();
+			if($user){				
+				$shopper = $this->db->query("SELECT * FROM tbl_user WHERE id = $user->shopper_id")->row();				
+				if($shopper){
+					$content = $user->first_name.' '.$user->last_name.' '.$message.' your product.';
+					$this->db->query("INSERT INTO tbl_notification (user_id, subject, content, image, type, created_date, created_by, status) VALUES ($shopper->id, '$content', '$content', '$shopper->image', 'INDIVIDUAL', NOW(), $user->id, 'Active')");
+				}
+			}	
+			
+			$retvalue['status'] = true;
+		}
+		
+		return $retvalue;
 	}
 	
 	function reset_password(){
@@ -268,36 +433,44 @@ class Admin_model extends CI_Model{
 		
 		
 		if($type == 'INSERT_API_PRODUCTS'){
-			
+			$error=0;
 			$products = json_decode($this->input->post('products'));
 			foreach($products as $p){
 				$product = json_decode($p[4]);
-				$name = str_replace("'","\\'",str_replace("\\","\\\\",($product->name)));
-				$id = $product->id;
-				$price = $product->price;
-				$image = $product->image;
-				$product_link = $product->url;
-				$min_age = $p[2];
-				$max_age = $p[3];
-				$category = $p[0];
-				$navigation = (array)$p[1];
-				
-				$product = $this->db->query("SELECT * FROM tbl_product WHERE id = $id")->row();
 				if($product){
-					$this->db->query("UPDATE tbl_product SET name = '$name', price = '$price', image = '$image', product_link = '$product_link', min_age = '$min_age', max_age = '$max_age', category = '$category', apiID = '$apiID',modified_by = $userID, modified_date = NOW(), status = 'Active' WHERE id = $id ");
+					$name = str_replace("'","\\'",str_replace("\\","\\\\",($product->name)));
+					$api_product_id = $product->id;
+					$price = $product->price;
+					$image = $product->image;
+					$product_link = $product->url;
+					$min_age = $p[2];
+					$max_age = $p[3];
+					$category = $p[0];
+					$navigation = (array)$p[1];
+					
+					$product = $this->db->query("SELECT * FROM tbl_product WHERE api_product_id = '$api_product_id'")->row();
+					if($product){
+						$id = $product->id;
+						$this->db->query("UPDATE tbl_product SET name = '$name', price = '$price', image = '$image', product_link = '$product_link', min_age = '$min_age', max_age = '$max_age', category = '$category', apiID = '$apiID',modified_by = $userID, modified_date = NOW(), status = 'Active' WHERE id = $id ");
+					}else{
+						$this->db->query("INSERT INTO tbl_product (api_product_id,name, price, image, product_link, min_age, max_age, category, apiID, source, created_by, modified_by, created_date,modified_date,status) VALUES ('$api_product_id','$name', '$price', '$image', '$product_link', '$min_age', '$max_age', '$category', '$apiID', '$source', $userID, $userID, NOW(), NOW(),'Active'); ");
+						$id = $this->db->query("SELECT MAX(id) AS id FROM tbl_product")->row()->id;
+					}
+					$this->db->query("DELETE FROM tbl_navigation_products WHERE product_id = $id");
+					foreach($navigation as $n){
+						$this->db->query("INSERT INTO tbl_navigation_products(navigation_id,product_id) VALUES($n,$id)");
+					}
 				}else{
-					$this->db->query("INSERT INTO tbl_product (id,name, price, image, product_link, min_age, max_age, category, apiID, source, created_by, modified_by, created_date,modified_date,status) VALUES ($id,'$name', '$price', '$image', '$product_link', '$min_age', '$max_age', '$category', '$apiID', '$source', $userID, $userID, NOW(), NOW(),'Active'); ");
+					$error++;
 				}
-				$this->db->query("DELETE FROM tbl_navigation_products WHERE product_id = $id");
-				foreach($navigation as $n){
-					$this->db->query("INSERT INTO tbl_navigation_products(navigation_id,product_id) VALUES($n,$id)");
-				}
-				
 			}
-			$retvalue['status']= true;
-			$retvalue['message']= 'Product saved successfully';
-		}
-		
+			if($error == 0){
+				$retvalue['status']= true;
+				$retvalue['message']= 'Product saved successfully';
+			}else{
+				$retvalue['message']= 'Product is not saved successfully';
+			}
+		}		
 		
 		return $retvalue;
 	}
@@ -332,6 +505,7 @@ class Admin_model extends CI_Model{
 		$category_id = isset($data['category_id']) ? (int)$data['category_id'] : 0;
 		$key = isset($data['key']) ? $data['key'] : '';
 		$category = isset($data['category']) ? $data['category'] : '';
+		$requestID = isset($data['requestID']) ? (int)$data['requestID'] : 0;
 		
 		if($type == 'S'){
 			return $this->db->query("SELECT * FROM tbl_product WHERE id = '$id'")->row();
@@ -342,6 +516,11 @@ class Admin_model extends CI_Model{
 		if($type == 'NS'){
 			return $this->db->query("SELECT * FROM tbl_navigation_products WHERE product_id = $id")->result();
 		}
+		
+		if($type == 'SUGGEST'){
+			return $this->db->query("SELECT p.id,p.name,p.price,p.image,p.product_link,c.name as categoryName FROM tbl_product p INNER JOIN tbl_category c ON c.id = p.category WHERE p.id NOT IN (SELECT product_id FROM tbl_user_request_products WHERE request_id = $requestID) ORDER BY id DESC LIMIT 50")->result();
+		}
+		
 		
 	}
 	
@@ -943,6 +1122,12 @@ class Admin_model extends CI_Model{
 		if($type == 'L'){
 			return $this->db->query("SELECT * FROM tbl_page ORDER BY id DESC")->result();
 		}
+		if($type == 'SA'){
+			return $this->db->query("SELECT * FROM tbl_shopping_assistant_page WHERE page = 'SA'")->row();
+		}
+		if($type == 'SP'){
+			return $this->db->query("SELECT * FROM tbl_shopping_assistant_page WHERE page = 'SP'")->row();
+		}
 		
 	}
 	function get_products_url(){
@@ -990,9 +1175,9 @@ class Admin_model extends CI_Model{
 							//Names
 							$keys = explode("/",$name_depth);
 							if(is_array($r))
-								$product['name'] = $this->get_array_value($r,$keys);
+								$product['name'] = str_replace("'","",str_replace('"','',($this->get_array_value($r,$keys))));
 							else
-								$product['name'] = $r;
+								$product['name'] = str_replace("'","",str_replace('"','',($r)));
 							
 							//Image
 							$keys = explode("/",$image_depth);
@@ -1040,6 +1225,20 @@ class Admin_model extends CI_Model{
 		
 	}
 	
+	function get_api_response(){
+		$url = $this->input->post("testURL");
+		if (filter_var($url, FILTER_VALIDATE_URL) === false) {		
+			$result = "Invalid Url";
+			return $result;
+		}
+		$result = @file_get_contents($url);		
+		
+		$xmlresult = @simplexml_load_string($result);
+		if($xmlresult)
+			return $xmlresult;
+		else
+			return $result;
+	}
 	function validate_url(){
 		$status=false;$message='Failed';
 		$url = $this->input->post("testURL");
@@ -1063,6 +1262,8 @@ class Admin_model extends CI_Model{
 		if($xmlresult)$result = json_encode($xmlresult);		
 		
 		$result = json_decode($result,true);
+		
+		//var_dump($result['Items']['Item'][0]['ItemAttributes']);exit();
 		
 		if(count($result) > 0){
 			
@@ -1111,6 +1312,7 @@ class Admin_model extends CI_Model{
 					}
 					if($product['id'] == false || $product['name'] == false || $product['image'] == false || $product['url'] == false || $product['price'] == false){
 						$retvalue['status'] = false;
+						$retvalue['product'] = $product;
 						$retvalue['message'] = 'Failed. Please give JSON depth paths correctly';
 					}else{
 						$retvalue['status'] = true;
@@ -1155,7 +1357,272 @@ class Admin_model extends CI_Model{
 		return $this->get_array_value($value, $indexes);
 	}
 	
+	public function get_shoppers($data){		
 		
+		$type = isset($data['type']) ? $data['type'] : '';
+		$id = isset($data['id']) ? (int)$data['id'] : 0;
+		
+		if($type == 'S'){
+			return $this->db->query("SELECT * FROM tbl_shopper_requests WHERE id = '$id'")->row();
+		}
+		if($type == 'L'){
+			return $this->db->query("SELECT * FROM tbl_shopper_requests where status='New'")->result();
+		}
+	}
+	function ins_upd_shopper(){
+		$retvalue['status']= false;$retvalue['message']= 'Please try again later';
+		
+		$type=$this->input->post('type');
+		$id=(int)$this->input->post('id');
+		
+		//$question=(string)$this->input->post('question');
+
+		//$status=$this->input->post('status') ? $this->input->post('status') : 'Active';
+		
+		if($type == "CONFIRM"){
+			//$password = password_hash(mt_rand(), PASSWORD_DEFAULT);
+			
+			$check = $this->db->query("SELECT * FROM tbl_user u INNER JOIN tbl_shopper_requests sr ON sr.email = u.email WHERE sr.id = $id")->row();
+			if(!$check){
+				$pwd = mt_rand();
+				$password = password_hash($pwd, PASSWORD_DEFAULT);
+				$this->db->query("UPDATE tbl_shopper_requests SET status='Confirmed' WHERE id='".$id."';");
+				$this->db->query("INSERT INTO tbl_user (first_name, last_name, email, password, role, phone, gender, city, country, address, created_date, modified_date, status) select first_name, last_name, email, '$password', 'SHOPPER',phone,gender,city,country,address,NOW(),NOW(),'Active' from tbl_shopper_requests where id=".$id.";");
+				
+				$user = $this->db->query("SELECT * FROM tbl_user u INNER JOIN tbl_shopper_requests sr ON sr.email = u.email WHERE sr.id = $id")->row();
+				if($user){
+					$auth_id = $this->db->query("SELECT UUID() AS auth_id")->row()->auth_id;
+					$this->db->query("UPDATE tbl_user SET auth_id = '$auth_id',modified_date = NOW() WHERE id = ".$user->id);
+					
+					//Sending Notification
+					$to = $user->email;
+					$subject = 'Shopper registration successful';
+					$url = base_url('home/password_reset/'.$auth_id);
+					$message="Hi ".$user->first_name.' '.$user->last_name.",<br><br>";
+					$message.="Thank you for registering with us.Below are login details,<br><br>";
+					$message.="Username:<b>".$user->email."</b><br>";
+					$message.="Password:<b>".$pwd."</b><br><br>";
+					$message.="To reset your password, click on the link below (or copy and paste the URL into your browser):<br><a href=".$url.">".$url."</a><br><br>";
+					$message.="Thanks,<br>Painlessgift Team."; 
+					$this->home_model->send_email($to,$subject,$message);					
+					
+					$retvalue['status']= true;
+					$retvalue['message']= 'Shopper approval: CONFIRMED.';
+				}else{
+					$retvalue['message']= 'Shopper approval: Failed.';
+				}
+			}else{
+				$retvalue['message']= 'Shopper approval: Already exists.';
+			}
+		}
+		
+		if($type == "DENY"){
+			$this->db->query("UPDATE tbl_shopper_requests SET status='Denied' WHERE id='".$id."';");
+			$retvalue['status']= true;
+			$retvalue['message']= 'Shopper approval: DENIED.';
+		}
+		
+		return $retvalue;
+	}
+	public function get_questions($data){		
+		
+		$type = isset($data['type']) ? $data['type'] : '';
+		$id = isset($data['id']) ? (int)$data['id'] : 0;
+		
+		if($type == 'S'){
+			return $this->db->query("SELECT * FROM tbl_questionaire WHERE id = '$id'")->row();
+		}
+		if($type == 'L'){
+			return $this->db->query("SELECT * FROM tbl_questionaire ORDER BY sorting_order ASC")->result();
+		}
+		if($type == 'O'){
+			return $this->db->query("SELECT * FROM tbl_question_options WHERE qid = $id")->result();
+		}
+		
+	}
+	function ins_upd_questions(){
+		$retvalue['status']= false;$retvalue['message']= 'Please try again later';
+		
+		$type=$this->input->post('type');
+		$id=(int)$this->input->post('id');
+		$question=(string)$this->input->post('question');
+		$mandatory=(int)$this->input->post('mandatory');
+		$sorting_order=(int)$this->input->post('sorting_order');
+		$qtype=(string)$this->input->post('qtype');
+
+		$status=$this->input->post('status') ? $this->input->post('status') : 'Active';
+		
+		if($type == "INSERT"){
+			$this->db->query("INSERT INTO tbl_questionaire (question, mandatory, sorting_order, qtype, created_date, status) VALUES ('$question', $mandatory, $sorting_order, '$qtype' ,NOW(), '$status')");
+			
+			$id = $this->db->query("SELECT MAX(id) as id FROM tbl_questionaire")->row()->id;
+			$retvalue['status']= true;
+			$retvalue['message']= 'Question created successfully';
+		}
+		
+		if($type == "UPDATE"){
+			$this->db->query("UPDATE tbl_questionaire SET question = '$question', mandatory = $mandatory, sorting_order = $sorting_order, qtype = '$qtype', status = '$status' WHERE id = $id ");
+			$retvalue['status']= true;
+			$retvalue['message']= 'Question updated successfully';
+		}
+		
+		if($type == "UPDATE" || $type == "INSERT"){
+			$this->db->query("UPDATE tbl_question_options SET status = 'R' WHERE qid = $id ");
+			$options = (array)json_decode($this->input->post('options'));
+			foreach($options as $o){
+				$check = $this->db->query("SELECT * FROM tbl_question_options WHERE id = $o[0]")->row();
+				if($check)
+					$this->db->query("UPDATE tbl_question_options SET status = 'A',name = '$o[1]' WHERE id = $o[0]");
+				else
+					$this->db->query("INSERT INTO tbl_question_options(qid,name,status) VALUE($id,'$o[1]','A')");
+			}
+			$this->db->query("DELETE FROM tbl_question_options WHERE status = 'R' AND qid = $id");
+		}
+		
+		if($type == "DELETE"){
+			$this->db->query("DELETE FROM tbl_questionaire WHERE id = $id");
+			$retvalue['status']= true;
+			$retvalue['message']= 'Question deleted successfully';
+		}
+		return $retvalue;
+	}
+	
+	
+	function get_chat($data){
+		$type = isset($data['type'])?$data['type']:'';
+		$userID = isset($data['userID'])?$data['userID']:'';
+		$sendTo = isset($data['sendTo'])?$data['sendTo']:'';
+		
+		if($type == 'USER_CHAT'){
+			
+			$retValue = array();
+			
+			$user = $this->db->query("SELECT * FROM tbl_user WHERE id='$sendTo'")->row();
+			if($user){
+				if(file_exists($user->image))
+					$user_array['image'] = base_url($user->image);
+				else
+					$user_array['image'] = base_url($this->config->item('default_image_user'));
+				
+				$user_array['name'] = $user->first_name.' '.$user->last_name;
+				$user_array['userID'] = $user->id;
+				
+				$retValue['user'] = (object) $user_array;	
+				
+				$chats = array();
+				$cqry = $this->db->query("SELECT * FROM tbl_chat WHERE ((userID='$userID' AND sendTo = '$sendTo') OR (userID='$sendTo' AND sendTo = '$userID')) AND status = 'ACTIVE' ORDER BY dateTime ASC")->result();
+				foreach($cqry as $c){
+					$c = (array) $c;
+					if(strtotime(date('y-m-d',strtotime($c['dateTime']))) != strtotime(date('y-m-d')))
+						$c['dateTime'] = date('d-m-y h:i A',strtotime($c['dateTime']));
+					else
+						$c['dateTime'] = date('h:i A',strtotime($c['dateTime']));
+						
+					$c = (object) $c;
+					array_push($chats,$c);
+				}
+				$retValue['chat'] = $chats;
+				return $retValue;
+			}
+		}
+		
+		if($type == 'ALL_CHAT'){
+			
+			$uqry = $this->db->query("SELECT u.id,u.first_name,u.last_name,u.image,(SELECT CONCAT(c.message,'~/date/~',c.dateTime) FROM tbl_chat c WHERE ((c.userID = u.userID AND c.sendTo='$userID') OR (c.userID = '$userID' AND c.sendTo = u.id)) AND c.status = 'ACTIVE' ORDER BY c.dateTime DESC LIMIT 1) AS lastMsg,(SELECT COUNT(*) FROM tbl_chat uc WHERE uc.userID = u.id AND uc.sendTo='$userID' AND uc.status = 'ACTIVE' AND uc.readMsg = 0) AS unRead FROM tbl_user u")->result();
+			
+			$users = array();
+			$i = 0;
+			foreach($uqry as $u){
+				$users[$i]['userID'] = $u->id;
+				$users[$i]['name'] = $u->first_name.' '.$u->last_name;
+				if(file_exists($u->image))
+					$users[$i]['image'] = base_url($u->image);
+				else
+					$users[$i]['image'] = base_url($this->config->item('default_image_user'));
+				$users[$i]['unread'] = $u->unRead;
+				
+				$lastMsg = '';$dateTime = '';$dateTime2 = '';
+				if($u->lastMsg){
+					$lm = explode("~/date/~",$u->lastMsg);
+					$dateTime = $this->date_formate2(end($lm));
+					$dateTime2 = end($lm);
+					$lastMsg = $lm[0];
+					
+				}
+				$users[$i]['lastMsg'] = $lastMsg;
+				$users[$i]['dateTime'] = $dateTime;
+				$users[$i]['dateTime2'] = $dateTime2;
+				$i++;
+			}
+			if(!empty($users)){
+				foreach ($users as $key => $part) {
+					$sort[$key] = strtotime($part['dateTime2']);
+				}
+				array_multisort($sort, SORT_DESC, $users);
+			}
+			//var_dump($users);exit();
+			return $users;
+		}
+		if($type=='TOTAL_COUNT'){
+			$userID = $this->session->userdata('userID');
+			return $this->db->query("SELECT COUNT(*) AS count FROM tbl_chat WHERE sendTo='$userID' AND readMsg = 0 AND status = 'ACTIVE'")->row();
+		}
+		return false;
+	}
+	
+	function ins_upd_chat(){
+		$retValue['status'] = false;$retValue['message'] = 'Error';
+		$userID = $this->input->post('userID');
+		$sendTo = $this->input->post('sendTo');
+		$message = str_replace("'","\\'",str_replace("\\","\\\\",($this->input->post('message'))));
+		$type = $this->input->post('type');
+		
+		if($type == 'INSERT'){
+			$this->db->query("INSERT INTO tbl_chat (chatID, userID, sendTo, message, dateTime, status) VALUES (UUID(), '$userID', '$sendTo', '$message', NOW(), 'ACTIVE')");
+			$retValue['status'] = true;
+			$retValue['message'] = 'Success';
+		}
+		
+		if($type == 'UPDATE_READ'){
+			$this->db->query("UPDATE tbl_chat SET readMsg = 1 WHERE userID = '$sendTo' AND sendTo='$userID'");
+			$retValue['status'] = true;
+			$retValue['message'] = 'Success';
+		}
+		
+		return $retValue;
+	}
+	function getReports($page){
+		$data['new'] = $this->db->query("SELECT COUNT(*) AS rCount FROM tbl_user_requests WHERE status = 'New'")->row()->rCount;
+		$data['ongoing'] = $this->db->query("SELECT COUNT(*) AS rCount FROM tbl_user_requests WHERE status = 'Ongoing' AND shopper_id = '".$this->session->userdata('userID')."'")->row()->rCount;
+		$data['completed'] = $this->db->query("SELECT COUNT(*) AS rCount FROM tbl_user_requests WHERE status = 'Completed' AND shopper_id = '".$this->session->userdata('userID')."'")->row()->rCount;
+		$rqry = $this->db->query("SELECT COUNT(*) AS rCount FROM tbl_user_requests WHERE shopper_id = '".$this->session->userdata('userID')."' GROUP BY userID")->row();
+		if($rqry)$data['users'] = $rqry->rCount;else $data['users'] =0 ;
+		return $data;
+	}
+	
+	function ins_upd_shopping_page(){
+		$heading = $this->input->post('heading');
+		$content = $this->input->post('content');
+		$btext = $this->input->post('btext');
+		$pheading = $this->input->post('pheading');
+		$pcontent = str_replace("'","",str_replace('"','',($this->input->post('pcontent'))));
+		$step1 = $this->input->post('step1');
+		$step2 = $this->input->post('step2');
+		$step3 = $this->input->post('step3');
+		$page = $this->input->post('page');
+		$stickytext = $this->input->post('stickytext');
+		
+		$check = $this->db->query("SELECT * FROM tbl_shopping_assistant_page WHERE page = '$page'")->row();
+		if($check){
+			$this->db->query("UPDATE tbl_shopping_assistant_page SET stickytext = '$stickytext', heading = '$heading', content = '$content', btext = '$btext', pheading = '$pheading', pcontent = '$pcontent', step1 = '$step1', step2 = '$step2', step3 = '$step3' WHERE id = $check->id");
+		}else{
+			$this->db->query("INSERT INTO tbl_shopping_assistant_page (page, stickytext, heading, content, btext, pheading, pcontent, step1, step2, step3) VALUES ('$page', '$stickytext', '$heading', '$content', '$btext', '$pheading', '$pcontent', '$step1', '$step2', '$step3')");
+		}
+		$data['status'] = true;
+		$data['message'] = 'Updated successfully';
+		return $data;
+	}
+	
 }
 
 ?>

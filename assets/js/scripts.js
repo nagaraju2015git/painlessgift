@@ -1,3 +1,12 @@
+$(window).load(function(){
+   // Page Preloader
+	$('#preloader').fadeOut('slow', function () {
+		$(this).remove();
+		$("body").css("overflow-y","auto");
+	});
+	
+});
+
 $('.owl-carousel').owlCarousel({
     loop:true,
     nav:true,
@@ -113,5 +122,9 @@ $("#search_type").on("change",function(){
 });
 $(".pagination .disabled a").on("click",function(e){
 	e.preventDefault();
+});
+$(document).ready(function(){
+	$(".mbh").css("min-height",($(window).height()-166)+'px');
+	$("footer").removeClass("hide");
 });
 

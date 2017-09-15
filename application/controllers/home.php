@@ -71,8 +71,11 @@ class Home extends CI_Controller{
 	}
 	
 	function access($data=array()){
-		if($this->session->userdata('role') == 'ADMIN'){
+		if($this->session->userdata('role') == $this->config->item('role_admin')){
 			redirect('admin');
+		}
+		if($this->session->userdata('role') == $this->config->item('role_shopper')){
+			redirect('shopper');
 		}
 	}
 	
@@ -101,6 +104,7 @@ class Home extends CI_Controller{
 		$data['header'] = $this->load->view('templates/header',$pageData,true);
 		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
 		$data['fb_login_url'] = $this->facebook->getRedirectLoginHelper()->getLoginUrl(base_url('home/facebook'), array('email'));
+		$data['page'] = $this->admin_model->get_page(array('type'=>'SP'));
 		$this->load->view('login',$data);
 	}
 	function signup(){
@@ -111,6 +115,37 @@ class Home extends CI_Controller{
 		$data['header'] = $this->load->view('templates/header',$pageData,true);
 		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
 		$this->load->view('register',$data);
+	}
+	function shopper(){
+		$this->access();
+		if($this->session->userdata('logged_in') == true)redirect('home');
+		$pageData['data'] = $this->home_model->getHeader();
+		$data['head'] = $this->load->view('templates/head',$pageData,true);
+		$data['header'] = $this->load->view('templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
+		$data['page'] = $this->admin_model->get_page(array('type'=>'SP'));
+		$this->load->view('shopper_signup_landing',$data);
+	}
+	function shopper_signup(){
+		$this->access();
+		if($this->session->userdata('logged_in') == true)redirect('home');
+		$pageData['data'] = $this->home_model->getHeader();
+		$data['head'] = $this->load->view('templates/head',$pageData,true);
+		$data['header'] = $this->load->view('templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
+		$this->load->view('shopper_signup',$data);
+	}
+	function shopping_assistant(){
+		$this->access();
+		$pageData['data'] = $this->home_model->getHeader();
+		$data['head'] = $this->load->view('templates/head',$pageData,true);
+		$data['header'] = $this->load->view('templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
+		$data['page'] = $this->admin_model->get_page(array('type'=>'SA'));
+		$this->load->view('shopping_assistant',$data);
+	}
+	function ins_upd_shopper_request(){
+		echo json_encode($this->home_model->ins_upd_shopper_request());
 	}
 	function login(){
 		echo json_encode($this->home_model->login());
@@ -211,6 +246,41 @@ class Home extends CI_Controller{
 		//var_dump($data);exit();
 		echo $this->load->view('gift_template',$data);;
 	}
+	function requests(){
+		$this->access();
+		if($this->session->userdata('logged_in') == false)redirect('home/signin');
+		$pageData['data'] = $this->home_model->getHeader();
+		$data['head'] = $this->load->view('templates/head',$pageData,true);
+		$data['header'] = $this->load->view('templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
+		$data['requests'] = $this->admin_model->get_user_requests(array('type'=>'USER_REQUESTS','userID'=>$this->session->userdata('userID')));
+		//var_dump($data['user']);exit();
+		$this->load->view('requests',$data);
+	}
+	function request_details($id=0){
+		$this->access();
+		if($this->session->userdata('logged_in') == false)redirect('home/signin');
+		$pageData['data'] = $this->home_model->getHeader();
+		$data['head'] = $this->load->view('templates/head',$pageData,true);
+		$data['header'] = $this->load->view('templates/header',$pageData,true);
+		$data['footer'] = $this->load->view('templates/footer',$pageData,true);
+		$data['request'] = $request = $this->admin_model->get_user_requests(array('type'=>'S','id'=>$id));
+		$data['products'] = $this->admin_model->get_user_requests(array('type'=>'PRODUCTS','id'=>$id));
+		//var_dump($data['user']);exit();
+		
+		if($request){
+			//Chat
+			$chat['sendToUserID'] = $request->shopper_id;
+			$chat['sendToImage'] = base_url($this->config->item('default_image_user'));
+			$chat['sendToName'] = $request->shopperName;
+			$data['chat'] = $this->load->view('chat',$chat,true);
+			
+			$this->load->view('request_details',$data);
+		}else{
+			echo 'Invalid URL';
+		}
+	}
+	
 	function ins_upd_profile(){
 		echo json_encode($this->home_model->ins_upd_profile());
 	}
@@ -335,6 +405,7 @@ class Home extends CI_Controller{
 			$data['profiles'] = $this->home_model->get_profile(array('type'=>'L','userID'=>$id));
 			$data['products'] = $this->home_model->get_profile(array('type'=>'PRODUCTS','userID'=>$id));
 			$data['user'] = $user;
+			
 			//var_dump($data['users']);exit();
 			$this->load->view('user_profile',$data);
 		}else{
@@ -419,6 +490,22 @@ class Home extends CI_Controller{
 	function searchProducts()
 	{
 		echo json_encode($this->home_model->searchProducts());
+	}
+	function ins_upd_user_answers()
+	{
+		echo json_encode($this->home_model->ins_upd_user_answers());
+	}	
+	
+	function get_chat(){
+		$data = array(
+			'type'=>$this->input->post('type'),
+			'userID'=>$this->input->post('userID'),
+			'sendTo'=>$this->input->post('sendTo')
+		);
+		echo json_encode($this->admin_model->get_chat($data));
+	}
+	function ins_upd_chat(){
+		echo json_encode($this->admin_model->ins_upd_chat());
 	}
 }
 ?>
